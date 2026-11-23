@@ -80,6 +80,18 @@ export interface AuditLog {
   created_at: string;
 }
 
+export interface OrderStatusHistory {
+  id: string;
+  order_id: string;
+  tenant_id: string;
+  status: string;
+  previous_status: string | null;
+  changed_by: string | null;
+  changed_by_name: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface JWTPayload {
   sub: string;
   tenant: string;

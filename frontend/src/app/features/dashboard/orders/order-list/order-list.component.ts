@@ -57,6 +57,26 @@ import { Order } from '../../../../core/models';
         </div>
       </div>
 
+      <!-- Status Count Pills -->
+      <div class="flex flex-wrap items-center gap-2">
+        @for (pill of statusPills(); track pill.value) {
+          <button
+            type="button"
+            (click)="selectedStatus.set(pill.value); currentPage.set(1)"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+            [class]="selectedStatus() === pill.value ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'"
+          >
+            {{ pill.label }}
+            <span
+              class="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1"
+              [class]="selectedStatus() === pill.value ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'"
+            >
+              {{ pill.count }}
+            </span>
+          </button>
+        }
+      </div>
+
       <!-- Filters Toolbar -->
       <div class="bg-white rounded-xl border border-slate-100 p-4 shadow-sm flex flex-col md:flex-row items-center gap-3 justify-between">
         <!-- Search Input -->
@@ -75,20 +95,6 @@ import { Order } from '../../../../core/models';
         </div>
 
         <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <!-- Status Select Filter -->
-          <select
-            [(ngModel)]="selectedStatus"
-            class="px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 text-slate-700 focus:outline-none focus:border-blue-500"
-          >
-            <option value="all">Todos los estados</option>
-            <option value="pending">Pendientes</option>
-            <option value="confirmed">Confirmados</option>
-            <option value="shipped">Enviados</option>
-            <option value="delivered">Entregados</option>
-            <option value="returned">Devueltos</option>
-            <option value="cancelled">Cancelados</option>
-          </select>
-
           <!-- Payment Method Filter -->
           <select
             [(ngModel)]="selectedPaymentMethod"
@@ -201,14 +207,15 @@ import { Order } from '../../../../core/models';
                         >
                           Ver
                         </a>
-                        <button
-                          type="button"
-                          (click)="quickAdvanceStatus(order)"
-                          class="px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 rounded-lg transition-colors"
-                          title="Avanzar estado"
-                        >
-                          Siguiente →
-                        </button>
+                        @if (getNextStatus(order)) {
+                          <button
+                            type="button"
+                            (click)="quickAdvanceStatus(order)"
+                            class="px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 rounded-lg transition-colors"
+                          >
+                            {{ getNextLabel(order) }} →
+                          </button>
+                        }
                       </div>
                     </td>
                   </tr>
@@ -269,6 +276,21 @@ export class OrderListComponent implements OnInit {
 
   readonly currentPage = signal<number>(1);
   readonly pageSize = 8;
+
+  readonly statusPills = computed(() => {
+    const all = this.orders();
+    const counts: Record<string, number> = { all: all.length, pending: 0, confirmed: 0, shipped: 0, delivered: 0, returned: 0, cancelled: 0 };
+    for (const o of all) counts[o.status] = (counts[o.status] ?? 0) + 1;
+    return [
+      { value: 'all', label: 'Todos', count: counts['all'] },
+      { value: 'pending', label: 'Pendientes', count: counts['pending'] },
+      { value: 'confirmed', label: 'Confirmados', count: counts['confirmed'] },
+      { value: 'shipped', label: 'Enviados', count: counts['shipped'] },
+      { value: 'delivered', label: 'Entregados', count: counts['delivered'] },
+      { value: 'returned', label: 'Devueltos', count: counts['returned'] },
+      { value: 'cancelled', label: 'Cancelados', count: counts['cancelled'] },
+    ];
+  });
 
   ngOnInit(): void {
     this.loadOrders();
@@ -346,23 +368,38 @@ export class OrderListComponent implements OnInit {
     this.currentPage.set(1);
   }
 
-  quickAdvanceStatus(order: Order): void {
-    const flow: Record<Order['status'], Order['status']> = {
-      pending: 'confirmed',
-      confirmed: 'shipped',
-      shipped: 'delivered',
-      delivered: 'delivered',
-      returned: 'returned',
-      cancelled: 'cancelled'
+  private readonly validTransitions: Record<string, string[]> = {
+    pending: ['confirmed', 'cancelled'],
+    confirmed: ['shipped', 'cancelled'],
+    shipped: ['delivered', 'returned'],
+    delivered: [],
+    returned: [],
+    cancelled: [],
+  };
+
+  getNextStatus(order: Order): Order['status'] | null {
+    const allowed = this.validTransitions[order.status];
+    return (allowed?.[0] as Order['status']) ?? null;
+  }
+
+  getNextLabel(order: Order): string {
+    const labels: Record<string, string> = {
+      confirmed: 'Confirmar',
+      shipped: 'Despachar',
+      delivered: 'Entregado',
     };
-    const nextStatus = flow[order.status];
-    if (nextStatus && nextStatus !== order.status) {
-      this.orderService.updateOrderStatus(order.id, nextStatus).subscribe(() => {
-        this.orders.update(all =>
-          all.map(o => o.id === order.id ? { ...o, status: nextStatus } : o)
-        );
-      });
-    }
+    const next = this.getNextStatus(order);
+    return next ? (labels[next] ?? next) : '';
+  }
+
+  quickAdvanceStatus(order: Order): void {
+    const nextStatus = this.getNextStatus(order);
+    if (!nextStatus) return;
+    this.orderService.updateOrderStatus(order.id, nextStatus).subscribe(() => {
+      this.orders.update(all =>
+        all.map(o => o.id === order.id ? { ...o, status: nextStatus } : o)
+      );
+    });
   }
 
   createNewDemoOrder(): void {

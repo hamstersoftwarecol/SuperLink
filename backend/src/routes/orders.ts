@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../types/env.js';
-import type { User, Order, OrderItem } from '../types/index.js';
+import type { User, Order, OrderItem, OrderStatusHistory } from '../types/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createAuditLog } from '../services/audit.js';
 import { generateId } from '../utils/id.js';
@@ -360,14 +360,29 @@ orders.put('/:id', async (c) => {
   }
 });
 
-// PATCH /api/orders/:id/status — Update status (with audit log)
+// Valid status transitions for COD pipeline
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['shipped', 'cancelled'],
+  shipped: ['delivered', 'returned'],
+  delivered: [],
+  returned: [],
+  cancelled: [],
+};
+
+// PATCH /api/orders/:id/status — Update status with transition validation and history
 orders.patch('/:id/status', async (c) => {
   try {
     const user = c.get('user');
     const tenantId = c.get('tenant_id');
     const orderId = c.req.param('id');
 
-    const body = await c.req.json<{ status: string; payment_status?: string }>();
+    const body = await c.req.json<{
+      status: string;
+      payment_status?: string;
+      notes?: string;
+      tracking_code?: string;
+    }>();
 
     const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'returned', 'cancelled'];
     if (!validStatuses.includes(body.status)) {
@@ -384,6 +399,13 @@ orders.patch('/:id/status', async (c) => {
       return c.json({ error: 'Order not found' }, 404);
     }
 
+    const allowed = VALID_TRANSITIONS[existing.status] ?? [];
+    if (!allowed.includes(body.status)) {
+      return c.json({
+        error: `Cannot transition from '${existing.status}' to '${body.status}'. Allowed: ${allowed.join(', ') || 'none (terminal state)'}`,
+      }, 400);
+    }
+
     const fields: string[] = ['status = ?'];
     const values: (string | number | null)[] = [body.status];
 
@@ -396,14 +418,32 @@ orders.patch('/:id/status', async (c) => {
       values.push(body.payment_status);
     }
 
+    if (body.tracking_code) {
+      fields.push('tracking_code = ?');
+      values.push(body.tracking_code);
+    }
+
+    if (body.status === 'delivered' && existing.payment_method === 'cod') {
+      fields.push('payment_status = ?');
+      values.push('paid');
+    }
+
     fields.push("updated_at = datetime('now')");
     values.push(orderId, tenantId);
 
-    await c.env.DB.prepare(
-      `UPDATE orders SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`
-    )
-      .bind(...values)
-      .run();
+    const historyId = generateId();
+
+    const statements: D1PreparedStatement[] = [
+      c.env.DB.prepare(
+        `UPDATE orders SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`
+      ).bind(...values),
+      c.env.DB.prepare(
+        `INSERT INTO order_status_history (id, order_id, tenant_id, status, previous_status, changed_by, changed_by_name, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(historyId, orderId, tenantId, body.status, existing.status, user.id, user.name, body.notes ?? null),
+    ];
+
+    await c.env.DB.batch(statements);
 
     await createAuditLog(c.env.DB, {
       tenant_id: tenantId,
@@ -411,7 +451,7 @@ orders.patch('/:id/status', async (c) => {
       action: 'update_order_status',
       entity: 'order',
       entity_id: orderId,
-      details: JSON.stringify({ old_status: existing.status, new_status: body.status }),
+      details: JSON.stringify({ old_status: existing.status, new_status: body.status, notes: body.notes }),
       ip_address: c.req.header('CF-Connecting-IP') || undefined,
     });
 
@@ -424,6 +464,34 @@ orders.patch('/:id/status', async (c) => {
     return c.json(updated);
   } catch (err) {
     return c.json({ error: 'Failed to update order status', details: String(err) }, 500);
+  }
+});
+
+// GET /api/orders/:id/history — Status change timeline
+orders.get('/:id/history', async (c) => {
+  try {
+    const tenantId = c.get('tenant_id');
+    const orderId = c.req.param('id');
+
+    const order = await c.env.DB.prepare(
+      'SELECT id FROM orders WHERE id = ? AND tenant_id = ?'
+    )
+      .bind(orderId, tenantId)
+      .first();
+
+    if (!order) {
+      return c.json({ error: 'Order not found' }, 404);
+    }
+
+    const { results } = await c.env.DB.prepare(
+      'SELECT * FROM order_status_history WHERE order_id = ? AND tenant_id = ? ORDER BY created_at ASC'
+    )
+      .bind(orderId, tenantId)
+      .all<OrderStatusHistory>();
+
+    return c.json(results);
+  } catch (err) {
+    return c.json({ error: 'Failed to get order history', details: String(err) }, 500);
   }
 });
 

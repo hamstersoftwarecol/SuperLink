@@ -95,6 +95,17 @@ export interface Order {
   createdAt: string;
 }
 
+export interface StatusHistoryEntry {
+  id: string;
+  orderId: string;
+  status: Order['status'];
+  previousStatus: Order['status'] | null;
+  changedBy: string | null;
+  changedByName: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
 export interface Customer {
   id: string;
   name: string;

@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "frontend",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start", "--", "--port", "4201"],
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/alejandro/Documents/SuperLink/frontend && npm run start -- --port 4201"],
       "port": 4201
     }
   ]

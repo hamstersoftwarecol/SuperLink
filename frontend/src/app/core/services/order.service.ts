@@ -1,7 +1,49 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, of, catchError, map } from 'rxjs';
 import { ApiService } from './api.service';
-import { Order } from '../models';
+import { Order, StatusHistoryEntry } from '../models';
+
+function mapOrder(raw: any): Order {
+  return {
+    id: raw.id,
+    tenantId: raw.tenant_id ?? raw.tenantId,
+    customerName: raw.customer_name ?? raw.customerName,
+    customerEmail: raw.customer_email ?? raw.customerEmail,
+    customerPhone: raw.customer_phone ?? raw.customerPhone,
+    customerAddress: raw.customer_address ?? raw.customerAddress,
+    customerCity: raw.customer_city ?? raw.customerCity,
+    customerDepartment: raw.customer_department ?? raw.customerDepartment,
+    status: raw.status,
+    paymentMethod: raw.payment_method ?? raw.paymentMethod,
+    paymentStatus: raw.payment_status ?? raw.paymentStatus,
+    subtotal: raw.subtotal,
+    shippingCost: raw.shipping_cost ?? raw.shippingCost ?? 0,
+    total: raw.total,
+    notes: raw.notes,
+    trackingCode: raw.tracking_code ?? raw.trackingCode,
+    items: (raw.items ?? []).map((i: any) => ({
+      id: i.id,
+      productId: i.product_id ?? i.productId,
+      productName: i.product_name ?? i.productName,
+      quantity: i.quantity,
+      unitPrice: i.unit_price ?? i.unitPrice,
+    })),
+    createdAt: raw.created_at ?? raw.createdAt,
+  };
+}
+
+function mapHistory(raw: any): StatusHistoryEntry {
+  return {
+    id: raw.id,
+    orderId: raw.order_id ?? raw.orderId,
+    status: raw.status,
+    previousStatus: raw.previous_status ?? raw.previousStatus,
+    changedBy: raw.changed_by ?? raw.changedBy,
+    changedByName: raw.changed_by_name ?? raw.changedByName,
+    notes: raw.notes,
+    createdAt: raw.created_at ?? raw.createdAt,
+  };
+}
 
 @Injectable({
   providedIn: 'root'
@@ -174,14 +216,18 @@ export class OrderService {
   ];
 
   getOrders(): Observable<Order[]> {
-    return this.api.get<{ data: Order[]; pagination: any }>('/orders').pipe(
-      map((res) => (Array.isArray(res) ? res : res.data ?? [])),
+    return this.api.get<{ data: any[]; pagination: any }>('/orders').pipe(
+      map((res) => {
+        const list = Array.isArray(res) ? res : res.data ?? [];
+        return list.map(mapOrder);
+      }),
       catchError(() => of(this.mockOrders))
     );
   }
 
   getOrderById(id: string): Observable<Order | null> {
-    return this.api.get<Order>(`/orders/${id}`).pipe(
+    return this.api.get<any>(`/orders/${id}`).pipe(
+      map((raw) => mapOrder(raw)),
       catchError(() => of(this.mockOrders.find(o => o.id === id) || null))
     );
   }
@@ -215,8 +261,9 @@ export class OrderService {
     );
   }
 
-  updateOrderStatus(id: string, status: Order['status']): Observable<Order> {
-    return this.api.patch<Order>(`/orders/${id}/status`, { status }).pipe(
+  updateOrderStatus(id: string, status: Order['status'], opts?: { notes?: string; tracking_code?: string; payment_status?: string }): Observable<Order> {
+    return this.api.patch<any>(`/orders/${id}/status`, { status, ...opts }).pipe(
+      map((raw) => mapOrder(raw)),
       catchError(() => {
         const order = this.mockOrders.find(o => o.id === id);
         if (order) {
@@ -228,8 +275,16 @@ export class OrderService {
     );
   }
 
+  getOrderHistory(id: string): Observable<StatusHistoryEntry[]> {
+    return this.api.get<any[]>(`/orders/${id}/history`).pipe(
+      map((list) => (list ?? []).map(mapHistory)),
+      catchError(() => of([]))
+    );
+  }
+
   updateOrder(id: string, updates: Partial<Order>): Observable<Order> {
-    return this.api.put<Order>(`/orders/${id}`, updates).pipe(
+    return this.api.put<any>(`/orders/${id}`, updates).pipe(
+      map((raw) => mapOrder(raw)),
       catchError(() => {
         const idx = this.mockOrders.findIndex(o => o.id === id);
         if (idx !== -1) {
