@@ -23,6 +23,7 @@ export interface Product {
   id: string;
   tenantId: string;
   name: string;
+  slug?: string;
   description?: string;
   price: number;
   comparePrice?: number;
@@ -30,6 +31,39 @@ export interface Product {
   stock: number;
   isActive: boolean;
   createdAt: string;
+}
+
+export interface PublicProduct {
+  store: { name: string; slug: string };
+  product: {
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    price: number;
+    compare_price: number | null;
+    image_url: string | null;
+    stock: number;
+  };
+}
+
+export interface CodOrderRequest {
+  product_id: string;
+  quantity: number;
+  customer_name: string;
+  customer_phone: string;
+  customer_address: string;
+  customer_city: string;
+  customer_department: string;
+  customer_email?: string;
+  notes?: string;
+}
+
+export interface CodOrderResponse {
+  order_id: string;
+  status: string;
+  total: number;
+  message: string;
 }
 
 export interface OrderItem {

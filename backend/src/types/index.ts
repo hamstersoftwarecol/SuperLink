@@ -27,6 +27,7 @@ export interface Product {
   id: string;
   tenant_id: string;
   name: string;
+  slug: string | null;
   description: string | null;
   price: number;
   compare_price: number | null;

@@ -7,6 +7,7 @@ import dashboard from './routes/dashboard.js';
 import orders from './routes/orders.js';
 import products from './routes/products.js';
 import users from './routes/users.js';
+import publicRoutes from './routes/public.js';
 
 type Variables = {
   user: import('./types/index.js').User;
@@ -38,6 +39,7 @@ app.route('/api/dashboard', dashboard);
 app.route('/api/orders', orders);
 app.route('/api/products', products);
 app.route('/api/users', users);
+app.route('/api/public', publicRoutes);
 
 // 404 fallback
 app.notFound((c) => c.json({ error: 'Not found' }, 404));

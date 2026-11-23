@@ -21,11 +21,19 @@ import { UserFormComponent } from './features/admin/users/user-form/user-form.co
 import { RoleManagerComponent } from './features/admin/roles/role-manager.component';
 import { SettingsComponent } from './features/admin/settings/settings.component';
 
+import { ProductPageComponent } from './features/public/product-page/product-page.component';
+import { OrderSuccessComponent } from './features/public/order-success/order-success.component';
+
 export const routes: Routes = [
   { path: '', component: LandingComponent },
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'forgot-password', component: ForgotPasswordComponent },
+
+  // Public product pages (no auth)
+  { path: 't/:tenantSlug/:productSlug', component: ProductPageComponent },
+  { path: 't/:tenantSlug/:productSlug/gracias', component: OrderSuccessComponent },
+
   {
     path: 'dashboard',
     component: DashboardLayoutComponent,

@@ -3,6 +3,29 @@ import type { Env } from '../types/env.js';
 import type { User, Product } from '../types/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+async function uniqueSlug(db: D1Database, tenantId: string, base: string): Promise<string> {
+  let slug = slugify(base);
+  let suffix = 0;
+  while (true) {
+    const candidate = suffix === 0 ? slug : `${slug}-${suffix}`;
+    const exists = await db.prepare(
+      'SELECT 1 FROM products WHERE tenant_id = ? AND slug = ?'
+    ).bind(tenantId, candidate).first();
+    if (!exists) return candidate;
+    suffix++;
+  }
+}
 import { createAuditLog } from '../services/audit.js';
 import { generateId } from '../utils/id.js';
 import { apiRateLimit } from '../middleware/rate-limit.js';
@@ -111,15 +134,17 @@ products.post('/', requireRole('vendedor'), async (c) => {
     }
 
     const productId = generateId();
+    const slug = await uniqueSlug(c.env.DB, tenantId, body.name);
 
     await c.env.DB.prepare(
-      `INSERT INTO products (id, tenant_id, name, description, price, compare_price, image_url, stock)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO products (id, tenant_id, name, slug, description, price, compare_price, image_url, stock)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         productId,
         tenantId,
         body.name,
+        slug,
         body.description ?? null,
         body.price,
         body.compare_price ?? null,
