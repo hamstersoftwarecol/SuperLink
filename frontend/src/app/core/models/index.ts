@@ -34,7 +34,13 @@ export interface Product {
 }
 
 export interface PublicProduct {
-  store: { name: string; slug: string };
+  store: {
+    name: string;
+    slug: string;
+    brand_color: string;
+    logo_url: string | null;
+    whatsapp: string | null;
+  };
   product: {
     id: string;
     name: string;
@@ -43,6 +49,8 @@ export interface PublicProduct {
     price: number;
     compare_price: number | null;
     image_url: string | null;
+    images: string[];
+    features: string[];
     stock: number;
   };
 }

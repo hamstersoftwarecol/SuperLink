@@ -3,6 +3,9 @@ export interface Tenant {
   name: string;
   slug: string;
   plan: string;
+  brand_color: string | null;
+  logo_url: string | null;
+  whatsapp: string | null;
   is_active: number;
   created_at: string;
   updated_at: string;
@@ -32,6 +35,8 @@ export interface Product {
   price: number;
   compare_price: number | null;
   image_url: string | null;
+  images: string;
+  features: string;
   stock: number;
   is_active: number;
   created_at: string;

@@ -16,20 +16,20 @@ publicRoutes.get('/:tenantSlug/products/:productSlug', async (c) => {
     const tenantSlug = c.req.param('tenantSlug');
     const productSlug = c.req.param('productSlug');
 
-    // Look up tenant
+    // Look up tenant with branding
     const tenant = await c.env.DB.prepare(
-      'SELECT id, name, slug FROM tenants WHERE slug = ? AND is_active = 1'
+      'SELECT id, name, slug, brand_color, logo_url, whatsapp FROM tenants WHERE slug = ? AND is_active = 1'
     )
       .bind(tenantSlug)
-      .first<Pick<Tenant, 'id' | 'name' | 'slug'>>();
+      .first<Pick<Tenant, 'id' | 'name' | 'slug' | 'brand_color' | 'logo_url' | 'whatsapp'>>();
 
     if (!tenant) {
       return c.json({ error: 'Store not found' }, 404);
     }
 
-    // Look up product
+    // Look up product with landing page fields
     const product = await c.env.DB.prepare(
-      `SELECT id, name, slug, description, price, compare_price, image_url, stock
+      `SELECT id, name, slug, description, price, compare_price, image_url, images, features, stock
        FROM products
        WHERE tenant_id = ? AND slug = ? AND is_active = 1`
     )
@@ -40,9 +40,20 @@ publicRoutes.get('/:tenantSlug/products/:productSlug', async (c) => {
       return c.json({ error: 'Product not found' }, 404);
     }
 
+    let images: string[] = [];
+    let features: string[] = [];
+    try { images = JSON.parse((product as any).images || '[]'); } catch {}
+    try { features = JSON.parse((product as any).features || '[]'); } catch {}
+
     return c.json({
-      store: { name: tenant.name, slug: tenant.slug },
-      product,
+      store: {
+        name: tenant.name,
+        slug: tenant.slug,
+        brand_color: tenant.brand_color || '#2563eb',
+        logo_url: tenant.logo_url,
+        whatsapp: tenant.whatsapp,
+      },
+      product: { ...product, images, features },
     });
   } catch (err) {
     return c.json({ error: 'Failed to load product', details: String(err) }, 500);
