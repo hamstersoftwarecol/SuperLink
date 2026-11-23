@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, of, catchError } from 'rxjs';
+import { Observable, of, catchError, map } from 'rxjs';
 import { ApiService } from './api.service';
 import { Order } from '../models';
 
@@ -174,7 +174,8 @@ export class OrderService {
   ];
 
   getOrders(): Observable<Order[]> {
-    return this.api.get<Order[]>('/orders').pipe(
+    return this.api.get<{ data: Order[]; pagination: any }>('/orders').pipe(
+      map((res) => (Array.isArray(res) ? res : res.data ?? [])),
       catchError(() => of(this.mockOrders))
     );
   }
