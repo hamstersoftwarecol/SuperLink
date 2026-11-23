@@ -1,0 +1,21 @@
+name = "superlink-backend"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+JWT_SECRET = "change-me-in-production-use-a-strong-secret"
+GOOGLE_CLIENT_ID = "your-google-client-id.apps.googleusercontent.com"
+FRONTEND_URL = "http://localhost:4200"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "superlink-db"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
